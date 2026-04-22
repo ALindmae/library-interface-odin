@@ -62,7 +62,7 @@ class Book {
     }
 };
 
-function addBook (author, title, pages, read, genre, id) {
+function addBook({ author, title, pages, read, genre, id }) {
     let newBook = new Book(author, title, pages, read ,genre, id);
     library.push(newBook);
 
@@ -70,14 +70,66 @@ function addBook (author, title, pages, read, genre, id) {
 }
 
 // ====== FUNCTION DEFINITIONS ====== //
-function handleBookInput(id) {
-    let title = document.querySelector(`.card[data-id="${id}"] .book-title-input`).value; 
-    let author = document.querySelector(`.card[data-id="${id}"] .book-author-input`).value;
-    let genre = document.querySelector(`.card[data-id="${id}"] .book-genre-selection`).value;
-    let pages = document.querySelector(`.card[data-id="${id}"] .book-pages-input`).value; 
-    let read = document.querySelector(`.card[data-id="${id}"]`).dataset.read;
+function getBookInputFields(id) {
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card) return null;
 
-    return addBook(author, title, pages, read, genre, id);
+  const form = card.querySelector('form');
+  if (!form) return null;
+
+  return {
+    form,
+    read: card.dataset.read,
+    fields: {
+      title: form.querySelector('.book-title-input'),
+      author: form.querySelector('.book-author-input'),
+      genre: form.querySelector('.book-genre-selection'),
+      pages: form.querySelector('.book-pages-input'),
+    },
+  };
+}
+
+function validateBookInputFields({ form, fields }) {
+    let valid = true;
+
+    Object.values(fields).forEach(field => {
+        let message = "";
+
+        if (!field.checkValidity()) {
+            valid = false;
+            if (field.validity.valueMissing) message = "Field can't be empty. ";
+            if (field.validity.tooShort) message = "Minimum 2 characters.";
+            field.setCustomValidity(message);
+        } else {
+            field.setCustomValidity("");
+        }
+    });
+    form.reportValidity();
+
+    return valid;
+}
+
+function extractBookDetails({ fields, read, id }) {
+    return {
+        title: fields.title.value,
+        author: fields.author.value,
+        genre: fields.genre.value,
+        pages: fields.pages.value,
+        read,
+        id,
+    };
+}
+
+function handleBookInput(id) {
+    const data = getBookInputFields(id);
+    if (!data) return null;
+
+    const { form, fields, read } = data;
+
+    if (!validateBookInputFields({ form, fields })) return null;
+
+    const bookDetails = extractBookDetails({ fields, id, read });
+    return addBook(bookDetails);
 }
 
 function createBookCard (book) {
@@ -153,9 +205,9 @@ function createBookCardForm () {
                     <div class="card-info">
                         <div>
                             <label for="book-title-input"> Book title </label>
-                            <textarea class="book-title-input" id="book-title-input" type="text" autofocus></textarea>
-                            <label for=""book-author-input""> Book author </label>
-                            <textarea class="book-author-input" id=""book-author-input"" type="text"></textarea>
+                            <textarea required class="book-title-input" id="book-title-input"autofocus></textarea>
+                            <label for="book-author-input"> Book author </label>
+                            <textarea required minlength="2" class="book-author-input" id="book-author-input"></textarea>
                         </div>
                         <div class="book-info">
                     <select name="book-genre-selection" class="book-genre-selection">
@@ -207,21 +259,38 @@ function handleBookCardForm() {
         }
     });
 
-    // Create the book
+    // Handle book creation
     let createBookBtn = card.querySelector('.create-book-button');
 
     createBookBtn.addEventListener('click', (event) => {
         event.preventDefault();
 
         let id = event.target.dataset.id;
+        const newBook = handleBookInput(id);
+        if (newBook) {
+            let newBookCard = createBookCard(newBook);
+            cardsContainer.prepend(newBookCard);
 
-        let newBook = handleBookInput(id);
-        let newBookCard = createBookCard(newBook);
-        cardsContainer.prepend(newBookCard);
+            card.remove();
+        }
+    });
 
-        card.remove();
+    // Add live validation
+    let form = card.querySelector('form');
+    form.addEventListener('input', (event) => {
+        handleLiveValidation(event, form);
     });
 };
+
+function handleLiveValidation(e, form) {
+    let message = "";
+    let input = e.target.closest('textarea');
+
+    if (input?.matches(':focus') && input?.validity.valueMissing) message = "Field can't be empty.";
+    if (input?.matches(':focus') && input?.validity.tooShort) message = "Minimum 2 characters.";
+    input.setCustomValidity(message);
+    input.reportValidity();
+}
 
 function toggleReadState(card) {
     const btnIcon = card.querySelector(".read-state-icon");
